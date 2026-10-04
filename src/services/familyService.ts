@@ -25,8 +25,10 @@ import {
   Wallet,
 } from '../types';
 import {
+  createDefaultMealPlans,
   createDefaultTaskCategories,
   createDefaultTransactionCategories,
+  ensureFullConversationCardBank,
 } from '../utils/defaults';
 import { generateUuid } from '../utils/format';
 
@@ -69,9 +71,16 @@ export function normalizeInviteCode(raw: string): string {
   return clean;
 }
 
+export function isValidUuid(id: unknown): boolean {
+  if (!id || typeof id !== 'string') return false;
+  const clean = id.trim().toLowerCase();
+  if (clean === 'null' || clean === 'undefined' || clean === '') return false;
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(clean);
+}
+
 export async function fetchFamilyBundleFromSupabase(
-  familyId: string,
-  inviteCode?: string
+  familyId?: string | null,
+  inviteCode?: string | null
 ): Promise<FamilyDatabaseBundle | null> {
   await ensureSharedSupabaseConfig();
   const supabase = getSupabaseClient();
@@ -79,28 +88,55 @@ export async function fetchFamilyBundleFromSupabase(
     throw new Error('Supabase belum terkonfigurasi. Harap periksa VITE_SUPABASE_URL dan VITE_SUPABASE_ANON_KEY.');
   }
 
-  // 1. Fetch family record
+  // 1. Fetch family record by ID if valid UUID
   let familyData: any = null;
-  const { data: directFam, error: famErr } = await supabase
-    .from('families')
-    .select('*')
-    .eq('id', familyId)
-    .maybeSingle();
-
-  if (famErr) {
-    throw new Error(`Gagal memuat keluarga dari Supabase: ${famErr.message}`);
-  }
-
-  familyData = directFam;
-
-  if (!familyData && inviteCode) {
-    const code = normalizeInviteCode(inviteCode);
-    const { data: codeFam } = await supabase
+  if (familyId && isValidUuid(familyId)) {
+    const { data: directFam, error: famErr } = await supabase
       .from('families')
       .select('*')
-      .ilike('invite_code', code)
+      .eq('id', familyId)
       .maybeSingle();
-    familyData = codeFam;
+
+    if (!famErr && directFam) {
+      familyData = directFam;
+    }
+  }
+
+  // 2. Fallback to invite_code if not resolved
+  if (!familyData && inviteCode) {
+    const code = normalizeInviteCode(inviteCode);
+    if (code) {
+      const { data: codeFam } = await supabase
+        .from('families')
+        .select('*')
+        .ilike('invite_code', code)
+        .maybeSingle();
+      if (codeFam) {
+        familyData = codeFam;
+      }
+    }
+  }
+
+  // 3. Fallback: check if current session user has family_members row
+  if (!familyData) {
+    const user = await authService.getCurrentSessionUser();
+    if (user?.email) {
+      const { data: memRow } = await supabase
+        .from('family_members')
+        .select('family_id')
+        .ilike('email', user.email.trim())
+        .maybeSingle();
+      if (memRow?.family_id && isValidUuid(memRow.family_id)) {
+        const { data: memFam } = await supabase
+          .from('families')
+          .select('*')
+          .eq('id', memRow.family_id)
+          .maybeSingle();
+        if (memFam) {
+          familyData = memFam;
+        }
+      }
+    }
   }
 
   if (!familyData) {
@@ -211,7 +247,13 @@ export async function fetchFamilyBundleFromSupabase(
     })),
     calendarEvents: eventsRes.data || [],
     coupleMoments: momentsRes.data || [],
-    conversationCards: cardsRes.data || [],
+    conversationCards: (() => {
+      const cards = ensureFullConversationCardBank(resolvedFamId, cardsRes.data || []);
+      if (!cardsRes.data || cardsRes.data.length < cards.length) {
+        supabase.from('conversation_cards').upsert(cards).catch(() => null);
+      }
+      return cards;
+    })(),
     journalEntries: journalRes.data || [],
     notifications: notifRes.data || [],
     familyDocuments: docsRes.data || [],
@@ -219,7 +261,13 @@ export async function fetchFamilyBundleFromSupabase(
       ...s,
       estimated_price: Number(s.estimated_price) || 0,
     })),
-    mealPlans: mealsRes.data || [],
+    mealPlans: (() => {
+      const meals = createDefaultMealPlans(resolvedFamId, mealsRes.data || []);
+      if (!mealsRes.data || mealsRes.data.length < meals.length) {
+        supabase.from('meal_plans').upsert(meals).catch(() => null);
+      }
+      return meals;
+    })(),
     coupleBucketItems: (bucketRes.data || []).map((b: any) => ({
       ...b,
       estimated_budget: Number(b.estimated_budget) || 0,
@@ -570,10 +618,14 @@ export const authService = {
       }
       const normalizedCode = normalizeInviteCode(rawJoinCode);
 
-      const { data: famRows, error: searchErr } = await supabase
-        .from('families')
-        .select('*')
-        .or(`invite_code.ilike.${normalizedCode},invite_code.ilike.${rawJoinCode},id.eq.${rawJoinCode}`);
+      const isUuid = isValidUuid(rawJoinCode);
+      let query = supabase.from('families').select('*');
+      if (isUuid) {
+        query = query.or(`invite_code.ilike.${normalizedCode},id.eq.${rawJoinCode}`);
+      } else {
+        query = query.or(`invite_code.ilike.${normalizedCode},invite_code.ilike.${rawJoinCode}`);
+      }
+      const { data: famRows, error: searchErr } = await query;
 
       if (searchErr || !famRows || famRows.length === 0) {
         throw new Error('Kode undangan keluarga tidak ditemukan di database Supabase.');

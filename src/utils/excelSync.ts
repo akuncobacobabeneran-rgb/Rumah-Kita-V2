@@ -22,10 +22,52 @@ import {
   getTodayIso,
 } from './format';
 
-function normalizeIsoDate(rawVal: any, fallbackIso: string): string {
+export function parseNumericAmount(val: any): number {
+  if (typeof val === 'number') {
+    return Number.isFinite(val) ? val : 0;
+  }
+  if (!val) return 0;
+  let str = String(val).trim().replace(/^(Rp\.?|IDR)\s*/i, '');
+  if (str.includes('.') && str.includes(',')) {
+    if (str.lastIndexOf(',') > str.lastIndexOf('.')) {
+      str = str.replace(/\./g, '').replace(',', '.');
+    } else {
+      str = str.replace(/,/g, '');
+    }
+  } else if (str.includes('.')) {
+    if (/^\d{1,3}(\.\d{3})+$/.test(str)) {
+      str = str.replace(/\./g, '');
+    }
+  } else if (str.includes(',')) {
+    if (/^\d{1,3}(,\d{3})+$/.test(str)) {
+      str = str.replace(/,/g, '');
+    } else {
+      str = str.replace(',', '.');
+    }
+  }
+  str = str.replace(/[^0-9.-]/g, '');
+  const num = parseFloat(str);
+  return Number.isFinite(num) ? num : 0;
+}
+
+export function normalizeIsoDate(rawVal: any, fallbackIso: string): string {
+  if (rawVal instanceof Date && !isNaN(rawVal.getTime())) {
+    const yyyy = rawVal.getFullYear();
+    const mm = String(rawVal.getMonth() + 1).padStart(2, '0');
+    const dd = String(rawVal.getDate()).padStart(2, '0');
+    return `${yyyy}-${mm}-${dd}`;
+  }
+  if (typeof rawVal === 'number' && rawVal > 10000 && rawVal < 90000) {
+    const dateObj = new Date(Math.round((rawVal - 25569) * 86400 * 1000));
+    if (!isNaN(dateObj.getTime())) {
+      const yyyy = dateObj.getUTCFullYear();
+      const mm = String(dateObj.getUTCMonth() + 1).padStart(2, '0');
+      const dd = String(dateObj.getUTCDate()).padStart(2, '0');
+      return `${yyyy}-${mm}-${dd}`;
+    }
+  }
   const s = String(rawVal ?? '').trim();
   if (!s) return fallbackIso;
-  // Match dd/mm/yyyy or dd-mm-yyyy
   const dmy = s.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{4})/);
   if (dmy) {
     const dd = dmy[1].padStart(2, '0');
@@ -33,7 +75,6 @@ function normalizeIsoDate(rawVal: any, fallbackIso: string): string {
     const yyyy = dmy[3];
     return `${yyyy}-${mm}-${dd}`;
   }
-  // Match yyyy-mm-dd
   const ymd = s.match(/^(\d{4})[/-](\d{1,2})[/-](\d{1,2})/);
   if (ymd) {
     const yyyy = ymd[1];
@@ -42,6 +83,29 @@ function normalizeIsoDate(rawVal: any, fallbackIso: string): string {
     return `${yyyy}-${mm}-${dd}`;
   }
   return s.slice(0, 10) || fallbackIso;
+}
+
+export function downloadExcelWorkbook(wb: XLSX.WorkBook, fileName: string) {
+  try {
+    const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+    const blob = new Blob([wbout], {
+      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    });
+    const url = window.URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.style.display = 'none';
+    anchor.href = url;
+    anchor.download = fileName;
+    document.body.appendChild(anchor);
+    anchor.click();
+    setTimeout(() => {
+      document.body.removeChild(anchor);
+      window.URL.revokeObjectURL(url);
+    }, 500);
+  } catch (err) {
+    console.warn('Fallback to XLSX.writeFile:', err);
+    XLSX.writeFile(wb, fileName);
+  }
 }
 
 export interface ExcelImportSummary {
@@ -367,7 +431,7 @@ export function exportFamilyDataToExcel(bundle: FamilyDatabaseBundle) {
     .replace(/[^a-zA-Z0-9_-]/g, '_')
     .replace(/__+/g, '_');
   const fileName = `RumahKita_Backup_${safeFamilyName}_${getTodayIso()}.xlsx`;
-  XLSX.writeFile(wb, fileName);
+  downloadExcelWorkbook(wb, fileName);
   return fileName;
 }
 
@@ -379,12 +443,16 @@ export async function parseExcelFileForImport(
   existingWallets: Wallet[]
 ): Promise<ParsedExcelPayload> {
   const buffer = await file.arrayBuffer();
-  const wb = XLSX.read(buffer, { type: 'array' });
+  const wb = XLSX.read(buffer, { type: 'array', cellDates: true });
   const now = new Date().toISOString();
   const today = getTodayIso();
 
   const getSheetRows = (sheetName: string): Record<string, any>[] => {
-    const ws = wb.Sheets[sheetName];
+    const actualName = wb.SheetNames.find(
+      (s) => s.toLowerCase().trim() === sheetName.toLowerCase().trim()
+    );
+    if (!actualName) return [];
+    const ws = wb.Sheets[actualName];
     if (!ws) return [];
     return XLSX.utils.sheet_to_json<Record<string, any>>(ws, { defval: '' });
   };
@@ -397,7 +465,7 @@ export async function parseExcelFileForImport(
 
   rawWallets.forEach((row) => {
     const name = String(row.Nama_Dompet || row.Nama || row.Wallet || '').trim();
-    const saldo = Number(row.Saldo ?? row.Balance ?? 0);
+    const saldo = parseNumericAmount(row.Saldo ?? row.Balance ?? 0);
     if (!name && saldo === 0) return;
     const finalName = name || 'Dompet Impor';
     const id = String(row.ID || '').trim() || generateUuid();
@@ -432,21 +500,25 @@ export async function parseExcelFileForImport(
 
   const transactions: Transaction[] = [];
   rawTxs.forEach((row) => {
-    const amount = Number(row.Nominal ?? row.Jumlah ?? row.Amount ?? 0);
-    const notes = String(row.Catatan ?? row.Deskripsi ?? row.Notes ?? '').trim();
+    const amount = parseNumericAmount(row.Nominal ?? row.Jumlah ?? row.Amount ?? row.Nilai ?? 0);
+    const notes = String(row.Catatan ?? row.Deskripsi ?? row.Notes ?? row.Keterangan ?? '').trim();
     if (!amount || amount <= 0) return;
 
     const rawType = String(row.Jenis ?? row.Tipe ?? row.Type ?? 'Pengeluaran').trim();
     const type: Transaction['type'] =
-      rawType === 'Pemasukan' || rawType === 'Transfer' ? rawType : 'Pengeluaran';
+      rawType.toLowerCase() === 'pemasukan' || rawType.toLowerCase() === 'income'
+        ? 'Pemasukan'
+        : rawType.toLowerCase() === 'transfer'
+        ? 'Transfer'
+        : 'Pengeluaran';
 
-    const catName = String(row.Kategori ?? row.Category ?? '').trim().toLowerCase();
+    const catName = String(row.Kategori ?? row.Category ?? row.Kategori_Transaksi ?? '').trim().toLowerCase();
     const matchedCat =
       existingTransactionCategories.find((c) => c.name.toLowerCase() === catName) ||
       existingTransactionCategories.find((c) => c.type === (type === 'Pemasukan' ? 'Pemasukan' : 'Pengeluaran')) ||
       existingTransactionCategories[0];
 
-    const dompetName = String(row.Dompet ?? row.Wallet ?? 'Dompet Utama').trim();
+    const dompetName = String(row.Dompet ?? row.Wallet ?? row.Nama_Dompet ?? 'Dompet Utama').trim();
     let walletId = walletNameMap.get(dompetName.toLowerCase());
     if (!walletId) {
       if (!fallbackWalletId) {
@@ -468,7 +540,7 @@ export async function parseExcelFileForImport(
       walletId = walletNameMap.get(dompetName.toLowerCase()) || fallbackWalletId;
     }
 
-    const toDompetName = String(row.Dompet_Tujuan ?? '').trim().toLowerCase();
+    const toDompetName = String(row.Dompet_Tujuan ?? row.To_Wallet ?? '').trim().toLowerCase();
     const toWalletId = toDompetName ? walletNameMap.get(toDompetName) : undefined;
 
     transactions.push({
@@ -479,7 +551,7 @@ export async function parseExcelFileForImport(
       category_id: matchedCat?.id || '',
       type,
       amount,
-      date: normalizeIsoDate(row.Tanggal ?? row.Date, today),
+      date: normalizeIsoDate(row.Tanggal ?? row.Date ?? row.Tgl, today),
       member_id: '',
       member_name: String(row.Anggota ?? row.Member ?? 'Keluarga'),
       notes,
@@ -491,7 +563,7 @@ export async function parseExcelFileForImport(
   // 3. Parse Budgets
   const budgets: Budget[] = [];
   getSheetRows('Anggaran').forEach((row) => {
-    const amount = Number(row.Nominal_Anggaran ?? row.Nominal ?? 0);
+    const amount = parseNumericAmount(row.Nominal_Anggaran ?? row.Nominal ?? row.Anggaran ?? 0);
     if (!amount || amount <= 0) return;
     const catName = String(row.Kategori || '').trim().toLowerCase();
     const matchedCat =
@@ -514,9 +586,9 @@ export async function parseExcelFileForImport(
   const debts: Debt[] = [];
   getSheetRows('Utang_Piutang').forEach((row) => {
     const personName = String(row.Nama_Pihak || row.Nama || '').trim();
-    const totalAmount = Number(row.Total_Nominal ?? row.Nominal ?? 0);
+    const totalAmount = parseNumericAmount(row.Total_Nominal ?? row.Nominal ?? row.Total ?? 0);
     if (!personName || totalAmount <= 0) return;
-    const paidAmount = Number(row.Sudah_Dibayar ?? 0);
+    const paidAmount = parseNumericAmount(row.Sudah_Dibayar ?? row.Terbayar ?? 0);
     const type: Debt['type'] = String(row.Jenis || '').trim() === 'Piutang' ? 'Piutang' : 'Utang';
     const status: Debt['status'] =
       paidAmount <= 0 ? 'Belum lunas' : paidAmount >= totalAmount ? 'Lunas' : 'Sebagian';
@@ -541,14 +613,14 @@ export async function parseExcelFileForImport(
   const goals: Goal[] = [];
   getSheetRows('Goal_Tabungan').forEach((row) => {
     const name = String(row.Nama_Goal || row.Nama || '').trim();
-    const target = Number(row.Target_Nominal ?? row.Target ?? 0);
+    const target = parseNumericAmount(row.Target_Nominal ?? row.Target ?? 0);
     if (!name || target <= 0) return;
     goals.push({
       id: String(row.ID || '').trim() || generateUuid(),
       family_id: familyId,
       name,
       target_amount: target,
-      current_amount: Number(row.Saldo_Terkumpul ?? 0),
+      current_amount: parseNumericAmount(row.Saldo_Terkumpul ?? row.Terkumpul ?? 0),
       deadline: normalizeIsoDate(row.Deadline, today),
       icon: 'Target',
       color: '#2A4D3E',
@@ -562,7 +634,7 @@ export async function parseExcelFileForImport(
   const assets: Asset[] = [];
   getSheetRows('Aset').forEach((row) => {
     const name = String(row.Nama_Aset || row.Nama || '').trim();
-    const value = Number(row.Nilai_Aset ?? row.Nilai ?? 0);
+    const value = parseNumericAmount(row.Nilai_Aset ?? row.Nilai ?? 0);
     if (!name || value <= 0) return;
     assets.push({
       id: String(row.ID || '').trim() || generateUuid(),
@@ -616,7 +688,7 @@ export async function parseExcelFileForImport(
       scheduled_date: normalizeIsoDate(row.Servis_Berikutnya || row.Jadwal_Berikutnya, ''),
       reminder_date: normalizeIsoDate(row.Tanggal_Pengingat, ''),
       assignee_name: String(row.Penanggung_Jawab || 'Keluarga'),
-      estimated_cost: Number(row.Estimasi_Biaya ?? 0),
+      estimated_cost: parseNumericAmount(row.Estimasi_Biaya ?? 0),
       status: (row.Status as MaintenanceItem['status']) || 'Belum dikerjakan',
       color: String(row.Warna || ''),
       notes: String(row.Catatan || ''),

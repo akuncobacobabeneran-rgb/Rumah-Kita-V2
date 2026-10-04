@@ -170,6 +170,47 @@ export const DEFAULT_CONVERSATION_CARD_BANK: Array<{
   },
 
   // ===========================================================================
+    {
+    category: 'Hubungan',
+    question: 'Kapan momen kamu merasa kita berdua benar-benar sefrekuensi dalam memandang hidup?',
+  },
+  {
+    category: 'Hubungan',
+    question: 'Apa lagu yang paling mengingatkanmu pada cerita cinta kita dari dulu sampai sekarang?',
+  },
+  {
+    category: 'Hubungan',
+    question: 'Hal apa yang paling kamu rindukan saat kita harus berpisah beberapa hari karena urusan kerja?',
+  },
+  {
+    category: 'Hubungan',
+    question: 'Bagaimana kita bisa membuat waktu berdua (quality time) di akhir pekan terasa lebih istimewa?',
+  },
+  {
+    category: 'Hubungan',
+    question: 'Apa hal paling menyentuh hati yang pernah aku katakan padamu saat kamu sedang terpuruk?',
+  },
+  {
+    category: 'Hubungan',
+    question: 'Jika ada satu sifat manjamu yang hanya boleh kamu tunjukkan padaku, sifat apa itu?',
+  },
+  {
+    category: 'Hubungan',
+    question: 'Bagaimana caraku menemanimu yang paling terasa menyejukkan hati saat kamu sedang sedih?',
+  },
+  {
+    category: 'Hubungan',
+    question: 'Apa impian liburan berdua tanpa kesibukan yang paling ingin kita wujudkan tahun ini?',
+  },
+  {
+    category: 'Hubungan',
+    question: 'Apa arti komitmen pernikahan kita bagimu ketika kita sedang berada di titik jenuh?',
+  },
+  {
+    category: 'Hubungan',
+    question: 'Hal apa yang membuatmu selalu bersyukur bahwa takdir mempertemukan kita berdua?',
+  },
+
   // 2. KOMUNIKASI (25 Kartu)
   // ===========================================================================
   {
@@ -274,6 +315,47 @@ export const DEFAULT_CONVERSATION_CARD_BANK: Array<{
   },
 
   // ===========================================================================
+    {
+    category: 'Komunikasi',
+    question: 'Apakah ada ucapan terima kasih yang belum sempat kamu sampaikan untuk hal kecil yang kulakukan belakangan ini?',
+  },
+  {
+    category: 'Komunikasi',
+    question: 'Bagaimana kita bisa lebih peka membaca bahasa tubuh satu sama lain saat sedang tidak enak hati?',
+  },
+  {
+    category: 'Komunikasi',
+    question: 'Topik apa yang menurutmu perlu lebih sering kita bicarakan secara santai di meja makan?',
+  },
+  {
+    category: 'Komunikasi',
+    question: 'Saat kita berbeda pendapat di depan orang lain, bagaimana cara kita menjaga wibawa satu sama lain?',
+  },
+  {
+    category: 'Komunikasi',
+    question: 'Apa respons pertama yang paling kamu harapkan dariku saat kamu bercerita tentang harimu yang buruk?',
+  },
+  {
+    category: 'Komunikasi',
+    question: 'Bagaimana cara terbaik bagiku untuk mengingatkanmu menjaga kesehatan tanpa terkesan menggurui?',
+  },
+  {
+    category: 'Komunikasi',
+    question: 'Apakah ada hal yang membuatmu merasa sungkan padaku yang ingin kamu hilangkan?',
+  },
+  {
+    category: 'Komunikasi',
+    question: 'Bagaimana kita bisa merayakan keberhasilan kecil masing-masing dengan lebih hangat dan meriah?',
+  },
+  {
+    category: 'Komunikasi',
+    question: 'Jika kamu merasa kesepian atau butuh teman bicara larut malam, apakah aku sudah cukup hadir untukmu?',
+  },
+  {
+    category: 'Komunikasi',
+    question: 'Kata atau sapaan apa di pesan WhatsApp yang paling membuatmu tersenyum di tengah jam kerja?',
+  },
+
   // 3. MASA DEPAN (25 Kartu)
   // ===========================================================================
   {
@@ -482,6 +564,47 @@ export const DEFAULT_CONVERSATION_CARD_BANK: Array<{
   },
 
   // ===========================================================================
+    {
+    category: 'Finansial',
+    question: 'Bagaimana perasaanmu tentang keterbukaan keuangan kita sejauh ini, apakah ada yang perlu diperbaiki?',
+  },
+  {
+    category: 'Finansial',
+    question: 'Pengeluaran bersama apa yang menurutmu paling memberikan kebahagiaan dan kepuasan batin bagi kita?',
+  },
+  {
+    category: 'Finansial',
+    question: 'Apa target tabungan atau dana darurat yang paling ingin kita amankan sebelum akhir tahun ini?',
+  },
+  {
+    category: 'Finansial',
+    question: 'Jika ada rezeki nomplok tak terduga, berapa persen yang sebaiknya kita tabung, investasikan, dan nikmati?',
+  },
+  {
+    category: 'Finansial',
+    question: 'Bagaimana kita membagi peran dalam mengelola anggaran bulanan agar tidak ada yang merasa terbebani?',
+  },
+  {
+    category: 'Finansial',
+    question: 'Pola belanja seperti apa yang menurutmu bisa kita hemat bersama tanpa mengurangi kenyamanan hidup?',
+  },
+  {
+    category: 'Finansial',
+    question: 'Bagaimana pandanganmu tentang persiapan dana pendidikan atau dana pensiun di usia kita sekarang?',
+  },
+  {
+    category: 'Finansial',
+    question: 'Apa batasan nominal belanja yang kita sepakati harus dibicarakan berdua sebelum membelinya?',
+  },
+  {
+    category: 'Finansial',
+    question: 'Bagaimana caramu melihat perbedaan gaya mengelola uang antara keluargamu dan keluargaku dahulu?',
+  },
+  {
+    category: 'Finansial',
+    question: 'Apa definisi kebebasan finansial (financial freedom) yang ingin kita capai bersama sebagai sebuah tim?',
+  },
+
   // 5. KELUARGA (25 Kartu)
   // ===========================================================================
   {
@@ -586,6 +709,27 @@ export const DEFAULT_CONVERSATION_CARD_BANK: Array<{
   },
 
   // ===========================================================================
+    {
+    category: 'Keluarga',
+    question: 'Tradisi akhir pekan apa yang ingin kita bangun agar rumah kita selalu menjadi tempat paling hangat?',
+  },
+  {
+    category: 'Keluarga',
+    question: 'Bagaimana cara kita saling mendukung saat menghadapi dinamika atau perbedaan pendapat dengan keluarga besar?',
+  },
+  {
+    category: 'Keluarga',
+    question: 'Aturan rumah tangga apa yang menurutmu paling penting untuk kita sepakati dan jaga bersama?',
+  },
+  {
+    category: 'Keluarga',
+    question: 'Bagaimana cara kita menjaga privasi dan keutuhan rumah tangga kita dari campur tangan pihak luar?',
+  },
+  {
+    category: 'Keluarga',
+    question: 'Pelajaran hidup paling berharga apa dari orang tuamu yang ingin kamu terapkan dalam keluarga kita?',
+  },
+
   // 6. FUN & SANTAI (25 Kartu)
   // ===========================================================================
   {
@@ -687,6 +831,66 @@ export const DEFAULT_CONVERSATION_CARD_BANK: Array<{
   {
     category: 'Fun',
     question: 'Tantangan seru tanpa gawai (digital detox) apa yang berani kita coba selama 3 jam malam ini?',
+  },
+  {
+    category: 'Fun',
+    question: 'Jika kita berdua menjadi peserta kuis masak di televisi, siapa yang akan panik duluan dan siapa yang memasak?',
+  },
+  {
+    category: 'Fun',
+    question: 'Film atau serial apa yang menurutmu paling seru untuk kita tonton maraton sambil makan popcorn di kamar?',
+  },
+  {
+    category: 'Fun',
+    question: 'Kalau kita punya pintu ke mana saja hari ini selama 2 jam, kamu ingin kita teleportasi ke mana?',
+  },
+  {
+    category: 'Fun',
+    question: 'Apa kebiasaan tidur atau kebiasaan anehku yang diam-diam menurutmu lucu atau menggemaskan?',
+  },
+  {
+    category: 'Fun',
+    question: 'Jika kita bertukar peran selama satu hari penuh, hal apa yang menurutmu paling menantang untuk kamu lakukan?',
+  },
+  {
+    category: 'Keluarga',
+    question: 'Kapan momen terbaik saat liburan bersama keluarga besar yang paling berkesan bagimu?',
+  },
+  {
+    category: 'Keluarga',
+    question: 'Bagaimana cara kita membagi waktu yang adil saat hari raya atau liburan antara keluargamu dan keluargaku?',
+  },
+  {
+    category: 'Keluarga',
+    question: 'Aktivitas berkebun atau menata rumah apa yang ingin kita jadikan rutinitas santai keluarga?',
+  },
+  {
+    category: 'Keluarga',
+    question: 'Bagaimana kita bisa mencontohkan komunikasi yang sehat dan saling menghargai di depan anak-anak kelak?',
+  },
+  {
+    category: 'Keluarga',
+    question: 'Apa harapan terbesarmu untuk keharmonisan dan kehangatan rumah tangga kita di tahun-tahun mendatang?',
+  },
+  {
+    category: 'Fun',
+    question: 'Kalau kita ikut acara reality show survival di pulau terpencil, siapa yang bertahan lebih lama?',
+  },
+  {
+    category: 'Fun',
+    question: 'Apa lagu karaoke yang paling percaya diri kamu nyanyikan jika kita karaoke berdua?',
+  },
+  {
+    category: 'Fun',
+    question: 'Jika kamu bisa menciptakan satu hari libur nasional khusus untuk kita berdua, hari itu dirayakan dengan apa?',
+  },
+  {
+    category: 'Fun',
+    question: 'Hal konyol apa yang pernah kamu lakukan demi menarik perhatianku waktu kita masih pendekatan?',
+  },
+  {
+    category: 'Fun',
+    question: 'Kalau kita punya hewan peliharaan ajaib yang bisa berbicara, hewan apa itu dan apa yang akan dia katakan tentang kita?',
   },
 ];
 

@@ -383,7 +383,7 @@ export const useFamilyStore = create<FamilyState>((set, get) => ({
           isLoading: false,
           profile: currentProfile,
           family: null,
-          error: 'Ruang keluarga belum ditemukan di Supabase.',
+          error: null,
         });
         return;
       }
@@ -1919,8 +1919,21 @@ export const useFamilyStore = create<FamilyState>((set, get) => ({
     const { family } = get();
     if (!family) return;
 
+    const now = new Date().toISOString();
+    const starterWallet: Wallet = {
+      id: generateUuid(),
+      family_id: family.id,
+      name: 'Dompet Utama',
+      type: 'Tunai',
+      balance: 0,
+      color: '#2A4D3E',
+      icon: 'Wallet',
+      created_at: now,
+      updated_at: now,
+    };
+
     set({
-      wallets: [],
+      wallets: [starterWallet],
       transactions: [],
       budgets: [],
       debts: [],
@@ -1958,6 +1971,7 @@ export const useFamilyStore = create<FamilyState>((set, get) => ({
         for (const t of tables) {
           await supabase.from(t).delete().eq('family_id', family.id);
         }
+        await supabase.from('wallets').insert(starterWallet);
       }
     });
   },

@@ -43,7 +43,15 @@ export function HomePage() {
     return <ErrorState message={error} onRetry={refreshData} />;
   }
 
-  const recentTransactions = transactions.slice(0, 5);
+  const recentTransactions = React.useMemo(() => {
+    return [...transactions]
+      .sort((a, b) => {
+        const d = b.date.localeCompare(a.date);
+        if (d !== 0) return d;
+        return (b.created_at || '').localeCompare(a.created_at || '');
+      })
+      .slice(0, 5);
+  }, [transactions]);
 
   // Dynamic family financial insight derived strictly from user data
   let insightText =
@@ -181,8 +189,13 @@ export function HomePage() {
       <section className="bg-white rounded-3xl border border-[#E8E2D5] p-5 space-y-4">
         <div className="flex items-center justify-between">
           <div>
-            <h2 className="text-sm font-bold text-[#1E2D24]">Transaksi Terbaru</h2>
-            <p className="text-xs text-[#5C6B62] mt-0.5">Riwayat mutasi pemasukan & pengeluaran</p>
+            <div className="flex items-center gap-2">
+              <h2 className="text-sm font-bold text-[#1E2D24]">Transaksi Terbaru</h2>
+              <span className="px-2 py-0.5 rounded-full bg-[#E8F2EC] text-[#2A4D3E] text-[10px] font-semibold">
+                5 Terkini
+              </span>
+            </div>
+            <p className="text-xs text-[#5C6B62] mt-0.5">Menampilkan 5 mutasi pemasukan & pengeluaran paling baru</p>
           </div>
           {recentTransactions.length > 0 && (
             <button

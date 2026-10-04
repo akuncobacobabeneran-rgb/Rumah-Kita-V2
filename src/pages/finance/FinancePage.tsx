@@ -1,11 +1,17 @@
 import React, { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { addDays, subDays, format, parseISO } from 'date-fns';
 import {
   ArrowDownLeft,
   ArrowLeftRight,
+  ArrowRight,
   ArrowUpRight,
+  Calendar,
   Check,
   CheckCircle2,
+  ChevronLeft,
+  ChevronRight,
+  Clock,
   Coins,
   Download,
   Edit3,
@@ -20,7 +26,9 @@ import {
   Plus,
   Receipt,
   Repeat,
+  RotateCcw,
   Search,
+  Sparkles,
   Target,
   Trash2,
   Wallet as WalletIcon,
@@ -77,6 +85,15 @@ export function FinancePage() {
   const [selectedCategoryId, setSelectedCategoryId] = useState<string>('ALL');
   const [searchQuery, setSearchQuery] = useState('');
 
+  // Date Filtering Mode for Riwayat Transaksi (Default: 'TODAY' -> "hanya tampilkan yang di hari itu saja")
+  type DateFilterMode = 'TODAY' | 'YESTERDAY' | 'LAST_7_DAYS' | 'THIS_MONTH' | 'RANGE' | 'ALL';
+  const [dateFilterMode, setDateFilterMode] = useState<DateFilterMode>('TODAY');
+  const [singleDate, setSingleDate] = useState<string>(getTodayIso());
+  const [rangeStartDate, setRangeStartDate] = useState<string>(
+    format(subDays(new Date(), 6), 'yyyy-MM-dd')
+  );
+  const [rangeEndDate, setRangeEndDate] = useState<string>(getTodayIso());
+
   // Modals
   const [showNeracaDetail, setShowNeracaDetail] = useState(false);
   const [editingTx, setEditingTx] = useState<Transaction | null>(null);
@@ -122,24 +139,165 @@ export function FinancePage() {
 
   const finance = useFinanceSummary(selectedMonth, selectedWalletId);
 
-  const displayedTransactions = useMemo(() => {
-    return finance.filteredTransactions.filter((tx) => {
-      if (selectedType !== 'ALL' && tx.type !== selectedType) return false;
-      if (selectedCategoryId !== 'ALL' && tx.category_id !== selectedCategoryId) return false;
-      if (searchQuery.trim()) {
-        const q = searchQuery.toLowerCase();
-        const catName =
-          transactionCategories.find((c) => c.id === tx.category_id)?.name.toLowerCase() || '';
-        const match =
-          tx.notes.toLowerCase().includes(q) ||
-          tx.member_name.toLowerCase().includes(q) ||
-          catName.includes(q) ||
-          String(tx.amount).includes(q);
-        if (!match) return false;
+  // 1. Transaksi Terbaru: Tampilkan yang terbaru saja (5 transaksi paling baru dicatat)
+  const recentTransactions = useMemo(() => {
+    return [...transactions]
+      .sort((a, b) => {
+        const d = b.date.localeCompare(a.date);
+        if (d !== 0) return d;
+        return (b.created_at || '').localeCompare(a.created_at || '');
+      })
+      .slice(0, 5);
+  }, [transactions]);
+
+  // 2. Riwayat Transaksi: Default hanya tampilkan yang di hari itu saja, serta filter tanggal / rentang tanggal
+  const filteredHistoryTransactions = useMemo(() => {
+    const todayIso = getTodayIso();
+    const yesterdayIso = format(subDays(new Date(), 1), 'yyyy-MM-dd');
+    const sevenDaysAgoIso = format(subDays(new Date(), 6), 'yyyy-MM-dd');
+    const thisMonthIso = getCurrentMonthIso();
+
+    return transactions
+      .filter((tx) => {
+        // Wallet filter
+        if (
+          selectedWalletId !== 'ALL' &&
+          tx.wallet_id !== selectedWalletId &&
+          tx.to_wallet_id !== selectedWalletId
+        ) {
+          return false;
+        }
+
+        // Type filter
+        if (selectedType !== 'ALL' && tx.type !== selectedType) {
+          return false;
+        }
+
+        // Category filter
+        if (selectedCategoryId !== 'ALL' && tx.category_id !== selectedCategoryId) {
+          return false;
+        }
+
+        // Search query filter
+        if (searchQuery.trim()) {
+          const q = searchQuery.toLowerCase();
+          const catName =
+            transactionCategories.find((c) => c.id === tx.category_id)?.name.toLowerCase() || '';
+          const match =
+            tx.notes.toLowerCase().includes(q) ||
+            tx.member_name.toLowerCase().includes(q) ||
+            catName.includes(q) ||
+            String(tx.amount).includes(q);
+          if (!match) return false;
+        }
+
+        // Date filter
+        if (dateFilterMode === 'TODAY') {
+          return tx.date === singleDate;
+        } else if (dateFilterMode === 'YESTERDAY') {
+          return tx.date === yesterdayIso;
+        } else if (dateFilterMode === 'LAST_7_DAYS') {
+          return tx.date >= sevenDaysAgoIso && tx.date <= todayIso;
+        } else if (dateFilterMode === 'THIS_MONTH') {
+          return tx.date.startsWith(thisMonthIso);
+        } else if (dateFilterMode === 'RANGE') {
+          if (rangeStartDate && tx.date < rangeStartDate) return false;
+          if (rangeEndDate && tx.date > rangeEndDate) return false;
+          return true;
+        }
+
+        return true;
+      })
+      .sort((a, b) => {
+        const d = b.date.localeCompare(a.date);
+        if (d !== 0) return d;
+        return (b.created_at || '').localeCompare(a.created_at || '');
+      });
+  }, [
+    transactions,
+    selectedWalletId,
+    selectedType,
+    selectedCategoryId,
+    searchQuery,
+    dateFilterMode,
+    singleDate,
+    rangeStartDate,
+    rangeEndDate,
+    transactionCategories,
+  ]);
+
+  const historySummary = useMemo(() => {
+    const income = filteredHistoryTransactions
+      .filter((t) => t.type === 'Pemasukan')
+      .reduce((sum, t) => sum + t.amount, 0);
+    const expense = filteredHistoryTransactions
+      .filter((t) => t.type === 'Pengeluaran')
+      .reduce((sum, t) => sum + t.amount, 0);
+    return {
+      income,
+      expense,
+      net: income - expense,
+      count: filteredHistoryTransactions.length,
+    };
+  }, [filteredHistoryTransactions]);
+
+  const activeDateLabel = useMemo(() => {
+    const todayIso = getTodayIso();
+    const yesterdayIso = format(subDays(new Date(), 1), 'yyyy-MM-dd');
+    if (dateFilterMode === 'TODAY') {
+      if (singleDate === todayIso) {
+        return `Hari Ini (${formatDateId(singleDate, 'd MMMM yyyy')})`;
+      } else if (singleDate === yesterdayIso) {
+        return `Kemarin (${formatDateId(singleDate, 'd MMMM yyyy')})`;
       }
-      return true;
-    });
-  }, [finance.filteredTransactions, selectedType, selectedCategoryId, searchQuery, transactionCategories]);
+      return formatDateId(singleDate, 'd MMMM yyyy');
+    }
+    if (dateFilterMode === 'YESTERDAY') {
+      return `Kemarin (${formatDateId(yesterdayIso, 'd MMMM yyyy')})`;
+    }
+    if (dateFilterMode === 'LAST_7_DAYS') {
+      const sevenDaysAgoIso = format(subDays(new Date(), 6), 'yyyy-MM-dd');
+      return `7 Hari Terakhir (${formatDateId(sevenDaysAgoIso, 'd MMM')} – ${formatDateId(todayIso, 'd MMM yyyy')})`;
+    }
+    if (dateFilterMode === 'THIS_MONTH') {
+      return `Bulan Ini (${formatMonthYearId(getCurrentMonthIso())})`;
+    }
+    if (dateFilterMode === 'RANGE') {
+      const from = rangeStartDate ? formatDateId(rangeStartDate, 'd MMM yyyy') : 'Awal';
+      const to = rangeEndDate ? formatDateId(rangeEndDate, 'd MMM yyyy') : 'Sekarang';
+      return `Rentang: ${from} – ${to}`;
+    }
+    return 'Semua Periode';
+  }, [dateFilterMode, singleDate, rangeStartDate, rangeEndDate]);
+
+  const goToPrevDay = () => {
+    try {
+      const cur = parseISO(singleDate);
+      const prev = subDays(cur, 1);
+      setSingleDate(format(prev, 'yyyy-MM-dd'));
+      setDateFilterMode('TODAY');
+    } catch {
+      setSingleDate(getTodayIso());
+    }
+  };
+
+  const goToNextDay = () => {
+    try {
+      const cur = parseISO(singleDate);
+      const next = addDays(cur, 1);
+      setSingleDate(format(next, 'yyyy-MM-dd'));
+      setDateFilterMode('TODAY');
+    } catch {
+      setSingleDate(getTodayIso());
+    }
+  };
+
+  const goToToday = () => {
+    setSingleDate(getTodayIso());
+    setDateFilterMode('TODAY');
+  };
+
+  const displayedTransactions = filteredHistoryTransactions;
 
   if (isLoading) return <PageSkeleton />;
   if (error) return <ErrorState message={error} onRetry={refreshData} />;
@@ -203,11 +361,11 @@ export function FinancePage() {
     },
   ];
 
-  const openCreateTxModal = () => {
+  const openCreateTxModal = (targetDate?: string) => {
     setEditingTx(null);
     setFormType('Pengeluaran');
     setFormAmount('');
-    setFormDate(getTodayIso());
+    setFormDate(targetDate || (dateFilterMode === 'TODAY' ? singleDate : getTodayIso()));
     const expCats = transactionCategories.filter((c) => c.type === 'Pengeluaran');
     setFormCatId(expCats[0]?.id || '');
     setFormWalletId(wallets[0]?.id || '');
@@ -520,11 +678,110 @@ export function FinancePage() {
         </div>
       </section>
 
-      {/* 5. DAFTAR TRANSAKSI TERBARU & PENCARIAN */}
+      {/* 5. DAFTAR TRANSAKSI TERBARU (HANYA YANG TERBARU SAJA) */}
       <section className="bg-white rounded-3xl border border-[#E8E2D5] p-5 space-y-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <div className="flex items-center gap-2">
+              <Clock className="w-4 h-4 text-[#2A4D3E]" />
+              <h2 className="text-sm font-bold text-[#1E2D24]">Transaksi Terbaru</h2>
+              <span className="px-2 py-0.5 rounded-full bg-[#E8F2EC] text-[#2A4D3E] text-[10px] font-bold">
+                5 Terkini
+              </span>
+            </div>
+            <p className="text-xs text-[#5C6B62] mt-0.5">
+              Menampilkan 5 transaksi mutasi paling baru yang dicatat keluarga Anda
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              setDateFilterMode('ALL');
+              const el = document.getElementById('riwayat-transaksi-section');
+              if (el) el.scrollIntoView({ behavior: 'smooth' });
+            }}
+            className="text-xs font-semibold text-[#2A4D3E] hover:underline flex items-center gap-1 cursor-pointer"
+          >
+            <span>Semua Riwayat</span>
+            <ArrowRight className="w-3.5 h-3.5" />
+          </button>
+        </div>
+
+        {recentTransactions.length === 0 ? (
+          <EmptyState
+            icon={Receipt}
+            title="Belum ada transaksi"
+            description="Mulai catat transaksi pertamamu agar laporan keuangan keluarga terhitung otomatis."
+            actionLabel="Catat Transaksi Pertama"
+            onAction={() => openCreateTxModal()}
+          />
+        ) : (
+          <div className="space-y-2.5">
+            {recentTransactions.map((tx) => {
+              const cat = transactionCategories.find((c) => c.id === tx.category_id);
+              const wallet = wallets.find((w) => w.id === tx.wallet_id);
+              return (
+                <div
+                  key={tx.id}
+                  onClick={() => setViewingTx(tx)}
+                  className="p-3.5 rounded-2xl bg-[#FAF7F2] border border-[#E8E2D5] hover:border-[#2A4D3E]/40 transition-colors cursor-pointer"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex items-start gap-3 min-w-0 flex-1">
+                      <div
+                        className="w-10 h-10 rounded-xl flex items-center justify-center text-white shrink-0 mt-0.5"
+                        style={{
+                          backgroundColor:
+                            tx.type === 'Transfer' ? '#457B9D' : cat?.color || '#2A4D3E',
+                        }}
+                      >
+                        <IconRenderer
+                          name={tx.type === 'Transfer' ? 'Repeat' : cat?.icon || 'Receipt'}
+                          className="w-5 h-5"
+                        />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-bold text-[#1E2D24] truncate">
+                          {tx.notes || cat?.name || tx.type}
+                        </p>
+                        <p className="text-xs text-[#5C6B62] truncate mt-0.5">
+                          {tx.type === 'Transfer' ? 'Transfer Wallet' : cat?.name || tx.type} ·{' '}
+                          {wallet?.name || 'Wallet'}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="text-right shrink-0">
+                      <span
+                        className={`block text-sm font-mono-num font-bold ${
+                          tx.type === 'Pemasukan'
+                            ? 'text-[#2A4D3E]'
+                            : tx.type === 'Pengeluaran'
+                            ? 'text-[#C84B31]'
+                            : 'text-[#457B9D]'
+                        }`}
+                      >
+                        {tx.type === 'Pemasukan' ? '+' : tx.type === 'Pengeluaran' ? '-' : ''}
+                        {formatRupiah(tx.amount, hideNumbers)}
+                      </span>
+                      <span className="block text-[11px] text-[#5C6B62] mt-0.5">
+                        {formatDateId(tx.date, 'd MMM yyyy')}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </section>
+
+      {/* 6. RIWAYAT TRANSAKSI (DEFAULT: HARI ITU SAJA + FILTER TANGGAL / RENTANG TANGGAL) */}
+      <section id="riwayat-transaksi-section" className="bg-white rounded-3xl border border-[#E8E2D5] p-5 space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
             <div className="flex items-center gap-2">
+              <Calendar className="w-4 h-4 text-[#2A4D3E]" />
               <h2 className="text-sm font-bold text-[#1E2D24]">Riwayat Transaksi</h2>
               {txSyncStatus === 'saving' && (
                 <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-[#E8F2EC] text-[#2A4D3E] text-[11px] font-semibold border border-[#2A4D3E]/20 animate-pulse">
@@ -534,7 +791,8 @@ export function FinancePage() {
               )}
             </div>
             <p className="text-xs text-[#5C6B62] mt-0.5">
-              Menampilkan {displayedTransactions.length} transaksi tercatat
+              Menampilkan {filteredHistoryTransactions.length} transaksi untuk:{' '}
+              <strong className="text-[#2A4D3E] font-semibold">{activeDateLabel}</strong>
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
@@ -543,11 +801,8 @@ export function FinancePage() {
               onClick={() =>
                 exportFinanceReportToPdf({
                   family,
-                  periodLabel:
-                    selectedMonth === 'ALL'
-                      ? 'Semua Periode'
-                      : formatMonthYearId(selectedMonth),
-                  transactions: displayedTransactions,
+                  periodLabel: activeDateLabel,
+                  transactions: filteredHistoryTransactions,
                   transactionCategories,
                   wallets,
                   assets,
@@ -562,7 +817,7 @@ export function FinancePage() {
             </button>
             <button
               type="button"
-              onClick={openCreateTxModal}
+              onClick={() => openCreateTxModal(dateFilterMode === 'TODAY' ? singleDate : undefined)}
               className="min-h-[40px] px-4 py-2 rounded-xl bg-[#2A4D3E] text-white text-xs font-semibold hover:bg-[#213D31] transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
             >
               <Plus className="w-4 h-4" />
@@ -571,7 +826,150 @@ export function FinancePage() {
           </div>
         </div>
 
-        {/* Transaction Filters Bar */}
+        {/* Filter Tanggal & Rentang Tanggal Box */}
+        <div className="p-4 rounded-2xl bg-[#FAF7F2] border border-[#E8E2D5] space-y-3">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold text-[#1E2D24] flex items-center gap-1.5">
+              <Filter className="w-3.5 h-3.5 text-[#2A4D3E]" />
+              <span>Filter Periode & Rentang Tanggal</span>
+            </span>
+            {dateFilterMode !== 'TODAY' && (
+              <button
+                type="button"
+                onClick={goToToday}
+                className="text-[11px] font-semibold text-[#2A4D3E] hover:underline flex items-center gap-1 cursor-pointer"
+              >
+                <RotateCcw className="w-3 h-3" />
+                <span>Kembali ke Hari Ini</span>
+              </button>
+            )}
+          </div>
+
+          {/* Preset Buttons */}
+          <div className="flex flex-wrap items-center gap-1.5">
+            {[
+              { id: 'TODAY', label: 'Hari Ini' },
+              { id: 'YESTERDAY', label: 'Kemarin' },
+              { id: 'LAST_7_DAYS', label: '7 Hari Terakhir' },
+              { id: 'THIS_MONTH', label: 'Bulan Ini' },
+              { id: 'RANGE', label: 'Rentang Tanggal' },
+              { id: 'ALL', label: 'Semua Waktu' },
+            ].map((p) => {
+              const isActive = dateFilterMode === p.id;
+              return (
+                <button
+                  key={p.id}
+                  type="button"
+                  onClick={() => setDateFilterMode(p.id as DateFilterMode)}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
+                    isActive
+                      ? 'bg-[#2A4D3E] text-white shadow-sm'
+                      : 'bg-white border border-[#E8E2D5] text-[#5C6B62] hover:text-[#1E2D24] hover:bg-[#F4EFE6]'
+                  }`}
+                >
+                  {p.label}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Sub-bar: Specific Date Navigator (when TODAY or single date mode) */}
+          {dateFilterMode === 'TODAY' && (
+            <div className="pt-2 border-t border-[#E8E2D5] flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={goToPrevDay}
+                  title="Hari Sebelumnya"
+                  className="w-8 h-8 rounded-lg bg-white border border-[#E8E2D5] flex items-center justify-center text-[#1E2D24] hover:bg-[#F4EFE6] cursor-pointer"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                </button>
+                <div className="min-w-[140px]">
+                  <DateInput
+                    value={singleDate}
+                    onChange={(val) => {
+                      setSingleDate(val);
+                      setDateFilterMode('TODAY');
+                    }}
+                  />
+                </div>
+                <button
+                  type="button"
+                  onClick={goToNextDay}
+                  title="Hari Berikutnya"
+                  className="w-8 h-8 rounded-lg bg-white border border-[#E8E2D5] flex items-center justify-center text-[#1E2D24] hover:bg-[#F4EFE6] cursor-pointer"
+                >
+                  <ChevronRight className="w-4 h-4" />
+                </button>
+                {singleDate !== getTodayIso() && (
+                  <button
+                    type="button"
+                    onClick={goToToday}
+                    className="px-2.5 py-1.5 rounded-lg bg-[#E8F2EC] text-[#2A4D3E] text-[11px] font-semibold hover:bg-[#d5e7dc] cursor-pointer"
+                  >
+                    Hari Ini
+                  </button>
+                )}
+              </div>
+
+              <div className="text-[11px] text-[#5C6B62]">
+                Menampilkan mutasi pada hari <strong className="text-[#1E2D24]">{formatDateId(singleDate, 'EEEE, d MMMM yyyy')}</strong>
+              </div>
+            </div>
+          )}
+
+          {/* Sub-bar: Custom Date Range (when RANGE mode) */}
+          {dateFilterMode === 'RANGE' && (
+            <div className="pt-2 border-t border-[#E8E2D5] space-y-2">
+              <div className="flex flex-col sm:flex-row sm:items-center gap-2.5">
+                <div className="flex items-center gap-2 flex-1">
+                  <span className="text-xs font-semibold text-[#5C6B62] shrink-0">Dari:</span>
+                  <div className="flex-1">
+                    <DateInput value={rangeStartDate} onChange={setRangeStartDate} />
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 flex-1">
+                  <span className="text-xs font-semibold text-[#5C6B62] shrink-0">Sampai:</span>
+                  <div className="flex-1">
+                    <DateInput value={rangeEndDate} onChange={setRangeEndDate} />
+                  </div>
+                </div>
+              </div>
+              <div className="text-[11px] text-[#5C6B62]">
+                Menampilkan transaksi dalam rentang tanggal yang dipilih di atas.
+              </div>
+            </div>
+          )}
+
+          {/* Sub-bar: Ringkasan Nilai Tanggal/Rentang Terpilih */}
+          <div className="pt-2 border-t border-[#E8E2D5] grid grid-cols-3 gap-2 text-center">
+            <div className="p-2 rounded-xl bg-white border border-[#E8E2D5]">
+              <span className="text-[10px] text-[#5C6B62] block">Pemasukan</span>
+              <strong className="text-xs font-mono-num font-bold text-[#2A4D3E]">
+                {formatRupiah(historySummary.income, hideNumbers)}
+              </strong>
+            </div>
+            <div className="p-2 rounded-xl bg-white border border-[#E8E2D5]">
+              <span className="text-[10px] text-[#5C6B62] block">Pengeluaran</span>
+              <strong className="text-xs font-mono-num font-bold text-[#C84B31]">
+                {formatRupiah(historySummary.expense, hideNumbers)}
+              </strong>
+            </div>
+            <div className="p-2 rounded-xl bg-white border border-[#E8E2D5]">
+              <span className="text-[10px] text-[#5C6B62] block">Selisih Net</span>
+              <strong
+                className={`text-xs font-mono-num font-bold ${
+                  historySummary.net >= 0 ? 'text-[#2A4D3E]' : 'text-[#C84B31]'
+                }`}
+              >
+                {formatRupiah(historySummary.net, hideNumbers)}
+              </strong>
+            </div>
+          </div>
+        </div>
+
+        {/* Additional Filters: Search, Type, Category */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
           <div className="relative">
             <Search className="w-4 h-4 text-[#5C6B62] absolute left-3.5 top-1/2 -translate-y-1/2" />
@@ -611,17 +1009,22 @@ export function FinancePage() {
           </select>
         </div>
 
-        {displayedTransactions.length === 0 ? (
+        {/* List of Transactions */}
+        {filteredHistoryTransactions.length === 0 ? (
           <EmptyState
             icon={Receipt}
-            title="Belum ada transaksi"
-            description="Mulai catat transaksi pertamamu atau sesuaikan filter pencarian di atas."
-            actionLabel="Tambah Transaksi"
-            onAction={openCreateTxModal}
+            title={
+              dateFilterMode === 'TODAY'
+                ? `Belum ada transaksi di ${activeDateLabel}`
+                : `Tidak ada transaksi pada ${activeDateLabel}`
+            }
+            description="Mulai catat transaksi untuk tanggal ini, atau ubah filter periode di atas untuk melihat tanggal lain."
+            actionLabel={`Catat Transaksi untuk ${dateFilterMode === 'TODAY' ? 'Hari Ini' : 'Tanggal Ini'}`}
+            onAction={() => openCreateTxModal(dateFilterMode === 'TODAY' ? singleDate : undefined)}
           />
         ) : (
           <div className="space-y-3">
-            {displayedTransactions.map((tx) => {
+            {filteredHistoryTransactions.map((tx) => {
               const cat = transactionCategories.find((c) => c.id === tx.category_id);
               const wallet = wallets.find((w) => w.id === tx.wallet_id);
               return (

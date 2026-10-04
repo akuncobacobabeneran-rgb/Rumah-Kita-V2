@@ -44,7 +44,7 @@ import {
 } from '../../utils/excelSync';
 import { exportFinanceReportToPdf } from '../../utils/pdfReport';
 import { formatDateTime24 } from '../../utils/format';
-import { ResponsiveModal } from '../../components/ui/ResponsiveModal';
+import { ConfirmDialog, ResponsiveModal } from '../../components/ui/ResponsiveModal';
 
 const GSHEET_WEBHOOK_KEY = 'rumahkita_gsheet_webhook_url';
 const GSHEET_LAST_SYNC_KEY = 'rumahkita_gsheet_last_sync';
